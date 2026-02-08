@@ -2,6 +2,7 @@ import os
 from notion_client import Client
 import yaml
 from dotenv import load_dotenv
+import argparse
 
 from notion2hugo import utils
 import os
@@ -11,7 +12,7 @@ load_dotenv()
 notion_token = os.environ.get("NOTION_TOKEN", None)
 database_id = os.environ.get("NOTION_DATABASE_ID", None)
 if not notion_token or not database_id:
-    raise ValueError("Please set NOTION_TOKEN and NOTION_DATABASE_ID in your environment variables.")
+    pass
 
 notion = Client(auth=notion_token)
 
@@ -77,7 +78,7 @@ def get_markdown_from_blocks(block_id):
     return markdown_output
 
 # 3. Main function to build the page
-def generate_hugo_post(page):
+def generate_hugo_post(page, output_dir="content/posts"):
     props = page["properties"]
     
     # Extract Front Matter
@@ -101,12 +102,26 @@ def generate_hugo_post(page):
         slug = utils.to_dashed(front_matter["title"].lower())
 
     # Save to file
-    with open(f"content/posts/{slug}.md", "w") as f:
+    filename = f"{slug}.md"
+    filepath = os.path.join(output_dir, filename)
+    with open(filepath, "w") as f:
         f.write(full_post)
-    print(f"Generated {slug}.md")
+    print(f"Generated {filepath}")
 
 def main():
-    os.makedirs("content/posts", exist_ok=True)
+    parser = argparse.ArgumentParser(description="Export Notion Database to Hugo Markdown.")
+    parser.add_argument(
+        "--output",
+        "-o",
+        default="content/posts",
+        help="Target directory for generated markdown files (default: content/posts)"
+    )
+    args = parser.parse_args()
+
+    if not notion_token or not database_id:
+        raise ValueError("Please set NOTION_TOKEN and NOTION_DATABASE_ID in your environment variables.")
+
+    os.makedirs(args.output, exist_ok=True)
 
     print("Retrieving the correct data source ID...")
     data_source_id = next(
@@ -123,4 +138,4 @@ def main():
     )
 
     for page in query["results"]:
-        generate_hugo_post(page)
+        generate_hugo_post(page, output_dir=args.output)
