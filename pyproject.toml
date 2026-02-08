@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "notion2hugo"
-version = "0.1.2"
+version = "0.1.3"
 description = "Export Notion database to Hugo markdown"
 authors = [{ name = "Hendra Manudinata", email = "manoedinata@gmail.com" }]
 requires-python = ">=3.10"
@@ -12,6 +12,7 @@ dependencies = [
     "notion-client",
     "python-dotenv",
     "pyyaml",
+    "requests",
 ]
 
 [project.scripts]

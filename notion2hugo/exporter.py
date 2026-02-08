@@ -3,6 +3,8 @@ from notion_client import Client
 import yaml
 from dotenv import load_dotenv
 import argparse
+import requests
+from urllib.parse import urlparse
 
 from notion2hugo import utils
 import os
@@ -11,10 +13,30 @@ load_dotenv()
 
 notion_token = os.environ.get("NOTION_TOKEN", None)
 database_id = os.environ.get("NOTION_DATABASE_ID", None)
-if not notion_token or not database_id:
-    pass
+if notion_token:
+    notion = Client(auth=notion_token)
 
-notion = Client(auth=notion_token)
+def download_image(url, save_dir, filename):
+    """
+    Downloads an image from a URL to the specified directory.
+    Returns True if successful.
+    """
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    filepath = os.path.join(save_dir, filename)
+
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        with open(filepath, 'wb') as f:
+            for chunk in response.iter_content(1024):
+                f.write(chunk)
+        return True
+
+    except Exception as e:
+        print(f"Failed to download image {filename}: {e}")
+        return False
 
 # 1. Helper to parse Rich Text arrays
 def parse_rich_text(rich_text_list):
@@ -32,7 +54,7 @@ def parse_rich_text(rich_text_list):
     return text_content
 
 # 2. Recursive function to fetch blocks and children
-def get_markdown_from_blocks(block_id):
+def get_markdown_from_blocks(block_id, image_dir, web_path_prefix):
     markdown_output = ""
 
     # Handle pagination (cursor) if needed, simplified here
@@ -63,7 +85,32 @@ def get_markdown_from_blocks(block_id):
             lang = content["language"]
             code_text = parse_rich_text(content["rich_text"])
             text = f"```{lang}\n{code_text}\n```"
-        
+
+        elif b_type == "image":
+            # 1. Get URL (File vs External)
+            if content["type"] == "external":
+                img_url = content["external"]["url"]
+            else:
+                img_url = content["file"]["url"]
+            
+            # 2. Extract Caption
+            caption = parse_rich_text(content.get("caption", []))
+            
+            # 3. Generate Filename (using block ID ensures uniqueness)
+            # Parse extension from URL or default to .png
+            path = urlparse(img_url).path
+            ext = os.path.splitext(path)[1]
+            if not ext: ext = ".png"
+            
+            filename = f"{block['id']}{ext}"
+            
+            # 4. Download
+            download_image(img_url, image_dir, filename)
+            
+            # 5. Create Markdown Link
+            # Syntax: ![Caption](/static/images/slug/id.png)
+            text = f"![{caption}]({web_path_prefix}/{filename})"
+
         # --- RECURSION FOR NESTED BLOCKS ---
         if block["has_children"]:
             # Recurse using this block's ID as the new parent
@@ -78,7 +125,7 @@ def get_markdown_from_blocks(block_id):
     return markdown_output
 
 # 3. Main function to build the page
-def generate_hugo_post(page, output_dir="content/posts"):
+def generate_hugo_post(page, output_dir="content/posts", static_dir="static"):
     props = page["properties"]
 
     # Extract Front Matter
@@ -90,17 +137,20 @@ def generate_hugo_post(page, output_dir="content/posts"):
         "tags": [f'{t["name"]}' for t in props["Tags"]["multi_select"]]
     }
 
-    # Generate Markdown Content
-    body_content = get_markdown_from_blocks(page["id"])
-    
-    # Combine
-    full_post = f"---\n{yaml.dump(front_matter)}---\n\n{body_content}"
-
     # Determine slug
     if len(props["Slug"]["rich_text"]) > 0:
         slug = props["Slug"]["rich_text"][0]["plain_text"]
     else:
         slug = utils.to_dashed(front_matter["title"].lower())
+
+    post_image_dir = os.path.join(static_dir, "images", slug)
+    web_image_path = f"/images/{slug}"
+
+    # Generate Markdown Content
+    body_content = get_markdown_from_blocks(page["id"], post_image_dir, web_image_path)
+
+    # Combine
+    full_post = f"---\n{yaml.dump(front_matter)}---\n\n{body_content}"
 
     # Save to file
     filename = f"{slug}.md"
@@ -116,6 +166,12 @@ def main():
         "-o",
         default="content/posts",
         help="Target directory for generated markdown files (default: content/posts)"
+    )
+    parser.add_argument(
+        "--static",
+        "-s",
+        default="static",
+        help="Target directory for static assets like images (default: static)"
     )
     args = parser.parse_args()
 
@@ -139,4 +195,4 @@ def main():
     )
 
     for page in query["results"]:
-        generate_hugo_post(page, output_dir=args.output)
+        generate_hugo_post(page, output_dir=args.output, static_dir=args.static)
