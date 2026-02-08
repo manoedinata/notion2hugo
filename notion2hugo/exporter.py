@@ -7,8 +7,11 @@ from notion2hugo import utils
 import os
 
 load_dotenv()
-notion_token = os.environ["NOTION_TOKEN"]
-database_id = os.environ["NOTION_DATABASE_ID"]
+
+notion_token = os.environ.get("NOTION_TOKEN", None)
+database_id = os.environ.get("NOTION_DATABASE_ID", None)
+if not notion_token or not database_id:
+    raise ValueError("Please set NOTION_TOKEN and NOTION_DATABASE_ID in your environment variables.")
 
 notion = Client(auth=notion_token)
 
