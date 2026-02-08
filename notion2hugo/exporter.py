@@ -80,12 +80,13 @@ def get_markdown_from_blocks(block_id):
 # 3. Main function to build the page
 def generate_hugo_post(page, output_dir="content/posts"):
     props = page["properties"]
-    
+
     # Extract Front Matter
     front_matter = {
         "title": props["Name"]["title"][0]["plain_text"],
         "date": props["Date"]["date"]["start"],
         "draft": props["Draft"]["checkbox"],
+        "summary": props["Summary"]["rich_text"][0]["plain_text"] if len(props["Summary"]["rich_text"]) > 0 else "",
         "tags": [f'{t["name"]}' for t in props["Tags"]["multi_select"]]
     }
 
