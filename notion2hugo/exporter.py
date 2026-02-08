@@ -77,7 +77,7 @@ def get_markdown_from_blocks(block_id, image_dir):
         elif b_type == "heading_2":
             prefix = "## "
             text = parse_rich_text(content["rich_text"])
-        elif b_type == "bulleted_list_item":
+        elif b_type == "bulleted_list_item" or b_type == "numbered_list_item":
             prefix = "  - "
             text = parse_rich_text(content["rich_text"])
             suffix = "\n"
