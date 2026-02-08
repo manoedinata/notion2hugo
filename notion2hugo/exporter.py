@@ -54,7 +54,7 @@ def parse_rich_text(rich_text_list):
     return text_content
 
 # 2. Recursive function to fetch blocks and children
-def get_markdown_from_blocks(block_id, image_dir, web_path_prefix):
+def get_markdown_from_blocks(block_id, image_dir):
     markdown_output = ""
 
     # Handle pagination (cursor) if needed, simplified here
@@ -109,7 +109,7 @@ def get_markdown_from_blocks(block_id, image_dir, web_path_prefix):
             
             # 5. Create Markdown Link
             # Syntax: ![Caption](/static/images/slug/id.png)
-            text = f"![{caption}]({web_path_prefix}/{filename})"
+            text = f"![{caption}]({filename})"
 
         # --- RECURSION FOR NESTED BLOCKS ---
         if block["has_children"]:
@@ -143,18 +143,19 @@ def generate_hugo_post(page, output_dir="content/posts", static_dir="static"):
     else:
         slug = utils.to_dashed(front_matter["title"].lower())
 
-    post_image_dir = os.path.join(static_dir, "images", slug)
-    web_image_path = f"/images/{slug}"
+    # Post directories
+    post_dir = os.path.join(output_dir, slug)
+    if not os.path.exists(post_dir):
+        os.makedirs(post_dir)
 
     # Generate Markdown Content
-    body_content = get_markdown_from_blocks(page["id"], post_image_dir, web_image_path)
+    body_content = get_markdown_from_blocks(page["id"], post_dir)
 
     # Combine
     full_post = f"---\n{yaml.dump(front_matter)}---\n\n{body_content}"
 
     # Save to file
-    filename = f"{slug}.md"
-    filepath = os.path.join(output_dir, filename)
+    filepath = os.path.join(post_dir, "index.md")
     with open(filepath, "w") as f:
         f.write(full_post)
     print(f"Generated {filepath}")
